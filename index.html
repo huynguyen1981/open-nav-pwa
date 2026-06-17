@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>OpenNav Mobile Pro</title>
-    <!-- Manifest & PWA Meta -->
+    <title>OpenNav Mobile Pro - V12</title>
     <link rel="manifest" href="manifest.json">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,177 +14,368 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        /* Reset & Toàn màn hình tối ưu Mobile */
-        html, body {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            overflow: hidden; background-color: #0b1528;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-        /* Map full diện tích */
+        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #0b1528; }
         #map { width: 100%; height: 100%; z-index: 1; }
-        
-        /* Giao diện Blueprint Vector Effect cho Mapbox Tile */
-        .mapbox-blueprint-filter {
-            filter: hue-rotate(10deg) invert(90%) contrast(110%) saturate(130%) brightness(95%);
-        }
-        
-        /* Custom Mũi tên GPS xoay mượt */
-        .gps-arrow-marker {
-            transition: transform 0.2s linear;
-            transform-origin: center center;
-        }
+        .mapbox-blueprint-filter { filter: hue-rotate(10deg) invert(90%) contrast(110%) saturate(130%) brightness(95%); }
+        .gps-arrow-marker { transition: transform 0.2s linear; transform-origin: center center; }
+        /* Style dropdown tìm kiếm */
+        .search-dropdown { max-height: 200px; overflow-y: auto; display: none; }
+        .search-dropdown.active { display: block; }
     </style>
 </head>
 <body class="relative text-slate-200">
 
-    <!-- MAP CONTAINER -->
     <div id="map"></div>
 
-    <!-- TOP BAR: Search Box Responsive (Flex-grow thông minh) -->
-    <div class="absolute top-4 left-0 right-0 mx-4 z-[1000] flex gap-2 items-center">
-        <div class="flex-grow flex items-center bg-slate-900/95 border border-slate-700/50 backdrop-blur-md rounded-xl shadow-lg px-3 py-2.5">
-            <!-- Icon Search -->
-            <svg class="w-5 h-5 text-slate-400 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-            <!-- Input -->
-            <input type="text" id="search-input" placeholder="Tìm địa điểm chặng test..." class="w-full bg-transparent text-slate-100 placeholder-slate-400 text-sm focus:outline-none">
+    <!-- PANEL TÌM KIẾM & ĐỊNH TUYẾN (Ẩn khi đang điều hướng) -->
+    <div id="search-panel" class="absolute top-4 left-0 right-0 mx-4 z-[1000] flex flex-col gap-2 transition-all duration-300">
+        <div class="flex gap-2 items-center">
+            <div class="flex-grow relative bg-slate-900/95 border border-slate-700/50 backdrop-blur-md rounded-xl shadow-lg px-3 py-2.5">
+                <input type="text" id="dest-input" placeholder="Nhập điểm đến (Ví dụ: Bricktown, OKC)..." class="w-full bg-transparent text-slate-100 placeholder-slate-400 text-sm focus:outline-none" autocomplete="off">
+                <!-- Dropdown kết quả gợi ý -->
+                <ul id="search-dropdown" class="search-dropdown absolute left-0 right-0 top-full mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-xl z-[1010] divide-y divide-slate-900"></ul>
+            </div>
+            <button id="btn-recenter" class="w-10 h-10 bg-blue-600 active:bg-blue-700 text-white rounded-xl shadow-lg flex items-center justify-center shrink-0 border border-blue-500/30">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </button>
         </div>
-        <!-- Button Định vị nhanh -->
-        <button id="btn-recenter" class="w-10 h-10 bg-blue-600 active:bg-blue-700 text-white rounded-xl shadow-lg flex items-center justify-center shrink-0 border border-blue-500/30 transition-all">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+
+        <!-- OPTIONS: Chọn chế độ di chuyển (Né Freeway) -->
+        <div class="flex gap-2">
+            <button id="opt-fastest" class="flex-1 py-2 rounded-lg text-xs font-semibold border bg-blue-600/20 border-blue-500 text-blue-400 transition-all">
+                ⚡ Cao tốc (Freeway)
+            </button>
+            <button id="opt-avoid" class="flex-1 py-2 rounded-lg text-xs font-semibold border bg-slate-900/80 border-slate-700 text-slate-400 transition-all">
+                🚗 Né Cao tốc (Avoid)
+            </button>
+        </div>
+    </div>
+
+    <!-- FLOATING CONTROLS -->
+    <div class="absolute right-4 bottom-44 z-[1000] flex flex-col gap-2">
+        <!-- Nút bật tắt chế độ giả lập Giữa nhà -->
+        <button id="btn-toggle-testmode" class="w-10 h-10 bg-slate-900/95 border border-slate-700/50 text-slate-400 rounded-full flex items-center justify-center shadow-lg transition-all">
+            🤖
         </button>
     </div>
 
-    <!-- BOTTOM SHEET: Thông tin dẫn đường gọn gàng cho Mobile -->
+    <!-- BOTTOM SHEET DẪN ĐƯỜNG -->
     <div class="absolute bottom-0 left-0 right-0 m-4 z-[1000] bg-slate-900/95 border border-slate-800/80 backdrop-blur-md rounded-2xl shadow-2xl p-4 flex flex-col gap-3">
-        <!-- Chỉ đường Voice hiện tại -->
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-700/50">
-                <!-- Icon Mũi tên Rẽ (Sẽ thay đổi theo API) -->
-                <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                <svg id="nav-icon" class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
             </div>
             <div class="flex-grow min-w-0">
-                <p id="tts-instruction" class="text-sm font-medium text-slate-200 truncate">Sẵn sàng điều hướng thực tế...</p>
-                <p id="route-meta" class="text-xs text-slate-400 mt-0.5">Hệ thống đang định vị GPS...</p>
+                <p id="tts-instruction" class="text-sm font-medium text-slate-200 truncate">Chọn điểm đến để tính lộ trình...</p>
+                <p id="route-meta" class="text-xs text-slate-400 mt-0.5">Thời gian: -- · Khoảng cách: --</p>
             </div>
+            <!-- Nút Bắt đầu điều hướng (Chỉ hiện khi có tuyến đường) -->
+            <button id="btn-start-nav" class="hidden px-4 py-2 bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all">
+                START
+            </button>
         </div>
         
-        <!-- Thanh trạng thái kết nối -->
         <div class="flex justify-between items-center border-t border-slate-800/60 pt-2.5 text-xs text-slate-400">
-            <span id="gps-status" class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500 inline-block animate-pulse"></span> Đang nhận tín hiệu</span>
-            <span id="mapbox-status" class="text-slate-500">Mapbox Tile Engine</span>
+            <span id="gps-status" class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500 inline-block animate-pulse"></span> Đang chờ điểm đến</span>
+            <span id="mode-status" class="text-blue-400 font-medium">GPS Thực tế</span>
         </div>
     </div>
 
-    <!-- APP NAVIGATION LOGIC -->
     <script>
-        // --- 1. BẢO MẬT TOKEN QUA LOCALSTORAGE ---
+        // --- 1. TOKEN & MAP BOX CONFIG ---
         let MAPBOX_TOKEN = localStorage.getItem('MY_MAPBOX_TOKEN');
         if (!MAPBOX_TOKEN) {
-            MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token của bồ vào đây để chạy (Chỉ lưu an toàn tại máy này):");
-            if (MAPBOX_TOKEN) {
-                localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
-            } else {
-                alert("Không có token app sẽ chạy bằng nền OpenStreetMap mặc định.");
-            }
+            MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token để chạy map xịn (Bỏ qua nếu muốn dùng map mặc định):");
+            if (MAPBOX_TOKEN) localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
         }
 
-        // --- 2. KHỞI TẠO BẢN ĐỒ VÀ ĐỊNH VỊ NỀN ---
-        // Tọa độ trung tâm mặc định nếu chưa có GPS
         const defaultLocation = [35.4676, -97.5164]; 
-        const map = L.map('map', {
-            zoomControl: false, // Tắt mặc định để tự custom vị trí trên mobile
-            attributionControl: false
-        }).setView(defaultLocation, 16);
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(defaultLocation, 15);
 
-        // --- 3. ĐỔI SANG TILE MAPBOX ĐẸP MƯỢT ---
         let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        if (MAPBOX_TOKEN) {
-            // Sử dụng Style Navigation Dark huyền thoại của Mapbox
-            tileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
-            document.getElementById('mapbox-status').innerText = "Mapbox Engine Active";
-            document.getElementById('mapbox-status').classList.remove('text-slate-500');
-            document.getElementById('mapbox-status').classList.add('text-emerald-400');
-        }
+        if (MAPBOX_TOKEN) tileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+        const baseTile = L.tileLayer(tileUrl, { maxZoom: 20, tileSize: 512, zoomOffset: -1 }).addTo(map);
+        if (!MAPBOX_TOKEN) baseTile.getContainer().classList.add('mapbox-blueprint-filter');
+
+        // --- 2. CONFIG BIẾN CORE LỘ TRÌNH & ĐỊNH VỊ ---
+        let originCoords = null;
+        let destCoords = null;
+        let currentRouteLine = null;
+        let geometryCoordinates = [];
+        let stepsData = [];
         
-        const baseTile = L.tileLayer(tileUrl, {
-            maxZoom: 20,
-            tileSize: 512,
-            zoomOffset: -1
+        let isNavigating = false;
+        let isRecenter = true;
+        let testModeActive = false; // Mặc định chạy GPS thật, ấn nút Robot để bật giả lập
+        let routingPreference = 'fastest'; // 'fastest' hoặc 'avoid'
+        
+        let simulationInterval = null;
+        let watchGpsId = null;
+
+        // Mũi tên GPS
+        const arrowSvg = `<svg class="gps-arrow-marker" width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 2L28 28L16 21L4 28L16 2px" fill="#0066ff" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>`;
+        let userMarker = L.marker(defaultLocation, {
+            icon: L.divIcon({ html: arrowSvg, className: '', iconSize: [32, 32], iconAnchor: [16, 16] })
         }).addTo(map);
 
-        // Áp bộ lọc Blueprint nếu xài OpenStreetMap gốc cho ngầu
-        if (!MAPBOX_TOKEN) {
-            baseTile.getContainer().classList.add('mapbox-blueprint-filter');
+        // --- 3. XỬ LÝ NÉ FREEWAY & CHUYỂN ĐỔI OPTION ---
+        const optFastest = document.getElementById('opt-fastest');
+        const optAvoid = document.getElementById('opt-avoid');
+
+        optFastest.addEventListener('click', () => toggleRoutingPref('fastest'));
+        optAvoid.addEventListener('click', () => toggleRoutingPref('avoid'));
+
+        function toggleRoutingPref(pref) {
+            if (isNavigating) return;
+            routingPreference = pref;
+            if (pref === 'fastest') {
+                optFastest.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-blue-600/20 border-blue-500 text-blue-400 transition-all";
+                optAvoid.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-slate-900/80 border-slate-700 text-slate-400 transition-all";
+            } else {
+                optAvoid.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-blue-600/20 border-blue-500 text-blue-400 transition-all";
+                optFastest.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-slate-900/80 border-slate-700 text-slate-400 transition-all";
+            }
+            if (destCoords) requestRoute();
         }
 
-        // --- 4. CONFIG MŨI TÊN ĐỊNH VỊ GPS CHUẨN TÂM ---
-        const arrowSvg = `
-            <svg class="gps-arrow-marker" width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M16 2L28 28L16 21L4 28L16 2px" fill="#0066ff" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
-            </svg>
-        `;
-        const gpsIcon = L.divIcon({
-            html: arrowSvg,
-            className: '', // Xóa class mặc định của Leaflet để không bị lệch anchor
-            iconSize: [32, 32],
-            iconAnchor: [16, 16] // Giữ chặt tâm hình học tuyệt đối
+        // --- 4. CONFIG AUTOCLOSE & SEARCH ĐỊA ĐIỂM TỰ ĐỘNG ---
+        setupSearchAutocomplete();
+
+        function setupSearchAutocomplete() {
+            const input = document.getElementById('dest-input');
+            const dropdown = document.getElementById('search-dropdown');
+            let timer;
+
+            input.addEventListener('input', (e) => {
+                clearTimeout(timer);
+                const query = e.target.value.trim();
+                if (query.length < 3) { dropdown.classList.remove('active'); return; }
+
+                timer = setTimeout(async () => {
+                    // Biến map.getCenter() giúp ưu tiên tìm các địa điểm ở gần bồ trước (OKC)
+                    const center = map.getCenter();
+                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}&limit=5`;
+                    try {
+                        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+                        const data = await res.json();
+                        dropdown.innerHTML = '';
+                        if (data.length === 0) { dropdown.classList.remove('active'); return; }
+
+                        data.forEach(item => {
+                            const li = document.createElement('li');
+                            li.className = 'p-3 text-xs text-slate-300 cursor-pointer hover:bg-slate-900 truncate';
+                            const cleanName = item.display_name.split(',')[0] + ', ' + (item.display_name.split(',')[1] || '').trim();
+                            li.innerText = cleanName;
+                            li.addEventListener('click', () => {
+                                input.value = cleanName;
+                                dropdown.classList.remove('active');
+                                destCoords = L.latLng(item.lat, item.lon);
+                                requestRoute();
+                            });
+                            dropdown.appendChild(li);
+                        });
+                        dropdown.classList.add('active');
+                    } catch (err) { console.error(err); }
+                }, 400);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('active');
+            });
+        }
+
+        // --- 5. ĐỊNH TUYẾN OSRM API (ĐÁP ỨNG NÉ FREEWAY) ---
+        async function requestRoute() {
+            if (!destCoords) return;
+            // Lấy vị trí xuất phát từ điểm Marker hiện tại của xe
+            originCoords = userMarker.getLatLng();
+
+            if (currentRouteLine) map.removeLayer(currentRouteLine);
+
+            // Cấu hình Profile OSRM: 'driving' đi cao tốc, 'cycling' ép đi đường nhỏ né freeway
+            let profile = (routingPreference === 'avoid') ? "cycling" : "driving";
+            let url = `https://router.project-osrm.org/route/v1/${profile}/${originCoords.lng},${originCoords.lat};${destCoords.lng},${destCoords.lat}?overview=full&steps=true`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.code !== 'Ok') return;
+
+                const route = data.routes[0];
+                geometryCoordinates = decodePolyline(route.geometry);
+
+                // Vẽ tuyến đường màu xanh neon lên bản đồ
+                currentRouteLine = L.polyline(geometryCoordinates, { color: '#38bdf8', weight: 6, opacity: 0.85 }).addTo(map);
+                map.fitBounds(currentRouteLine.getBounds(), { padding: [60, 60] });
+
+                stepsData = route.legs[0].steps;
+                
+                // Hiển thị Meta
+                const durationMin = Math.round(route.duration / 60);
+                const distanceMi = (route.distance * 0.000621371).toFixed(1);
+                document.getElementById('route-meta').innerText = `${durationMin} phút · ${distanceMi} mi`;
+                document.getElementById('tts-instruction').innerText = "Tuyến đường đã sẵn sàng.";
+                
+                // Hiện nút START
+                document.getElementById('btn-start-nav').classList.remove('hidden');
+            } catch (err) { console.error(err); }
+        }
+
+        // --- 6. XỬ LÝ CHẠY GIẢ LẬP HOẶC REAL-TIME GPS VỚI VOICE ---
+        const startNavBtn = document.getElementById('btn-start-nav');
+        const searchPanel = document.getElementById('search-panel');
+
+        startNavBtn.addEventListener('click', () => {
+            if (!isNavigating) {
+                isNavigating = true;
+                startNavBtn.innerText = "STOP";
+                startNavBtn.className = "px-4 py-2 bg-red-600 active:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md transition-all";
+                searchPanel.classList.add('opacity-0', 'pointer-events-none', '-translate-y-10'); // Giấu panel tìm kiếm cho gọn máy
+
+                if (testModeActive) {
+                    runSimulation();
+                } else {
+                    startRealGPSTracking();
+                }
+            } else {
+                stopNavigation();
+            }
         });
 
-        let userMarker = L.marker(defaultLocation, { icon: gpsIcon }).addTo(map);
+        // HÀM CHẠY GIẢ LẬP (SIMULATION TEST)
+        function runSimulation() {
+            let currentIndex = 0;
+            let lastStepIdx = -1;
+            
+            simulationInterval = setInterval(() => {
+                if (currentIndex >= geometryCoordinates.length) { stopNavigation(); return; }
+                
+                const currentPos = geometryCoordinates[currentIndex];
+                let bearing = 0;
+                if (currentIndex < geometryCoordinates.length - 1) {
+                    const nextPos = geometryCoordinates[currentIndex + 1];
+                    bearing = calculateBearing(currentPos.lat, currentPos.lng, nextPos.lat, nextPos.lng);
+                }
 
-        // --- 5. REAL-TIME TRACKING (CHẠY TEST CHIỀU NAY) ---
-        let watchId = null;
-        let isRecenter = true;
-
-        if ("geolocation" in navigator) {
-            watchId = navigator.geolocation.watchPosition((position) => {
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                const accuracy = position.coords.accuracy;
-                const heading = position.coords.heading || 0; // Góc bearing xe chạy
-                const speed = position.coords.speed ? Math.round(position.coords.speed * 2.23694) : 0; // Đổi ra mph để test đường Mỹ
-
-                const newLatLng = new L.LatLng(lat, lng);
-                userMarker.setLatLng(newLatLng);
-
-                // Xoay mũi tên theo góc thực tế của xe
+                // Cập nhật vị trí marker và khóa góc xoay map
+                userMarker.setLatLng(currentPos);
+                if (isRecenter) map.setView(currentPos, 17);
+                
                 const arrowElement = document.querySelector('.gps-arrow-marker');
-                if (arrowElement) {
-                    arrowElement.style.transform = `rotate(${heading}deg)`;
+                if (arrowElement) arrowElement.style.transform = `rotate(${bearing}deg)`;
+
+                // Tính toán đồng bộ text chỉ đường giả lập
+                let totalPoints = geometryCoordinates.length;
+                let totalSteps = stepsData.length;
+                let estimatedStep = Math.floor((currentIndex / totalPoints) * totalSteps);
+                
+                if (estimatedStep < totalSteps && estimatedStep !== lastStepIdx) {
+                    lastStepIdx = estimatedStep;
+                    const instructionText = stepsData[estimatedStep].maneuver.instruction;
+                    document.getElementById('tts-instruction').innerText = instructionText;
+                    speakVoice(instructionText);
                 }
 
-                // Cập nhật Bottom Sheet thông số
-                document.getElementById('gps-status').innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> GPS Live (${accuracy.toFixed(0)}m)`;
-                document.getElementById('route-meta').innerText = `Vận tốc: ${speed} mph · Độ chính xác: ${accuracy.toFixed(1)}m`;
-
-                // Khóa cứng tâm bản đồ theo xe nếu người dùng chưa kéo map đi chỗ khác
-                if (isRecenter) {
-                    map.setView(newLatLng, 17); // Zoom 17 tối ưu dẫn đường xe hơi
-                }
-
-            }, (error) => {
-                console.error("Lỗi GPS:", error);
-                document.getElementById('gps-status').innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span> Mất GPS`;
-            }, {
-                enableHighAccuracy: true, // Ép dùng chip GPS xịn nhất trên điện thoại
-                maximumAge: 0,
-                timeout: 5000
-            });
-        } else {
-            alert("Thiết bị của bồ không hỗ trợ định vị GPS phần cứng.");
+                currentIndex++;
+            }, 800); // Tốc độ nhảy điểm giả lập
         }
 
-        // Nút Recenter kéo map về vị trí xe ngay lập tức
+        // HÀM CHẠY THEO CHIP GPS THẬT
+        function startRealGPSTracking() {
+            let lastStepIdx = -1;
+            watchGpsId = navigator.geolocation.watchPosition((pos) => {
+                const currentPos = L.latLng(pos.coords.latitude, pos.coords.longitude);
+                const heading = pos.coords.heading || 0;
+                const speed = pos.coords.speed ? Math.round(pos.coords.speed * 2.23694) : 0;
+
+                userMarker.setLatLng(currentPos);
+                if (isRecenter) map.setView(currentPos, 17);
+                
+                const arrowElement = document.querySelector('.gps-arrow-marker');
+                if (arrowElement) arrowElement.style.transform = `rotate(${heading}deg)`;
+
+                document.getElementById('route-meta').innerText = `Vận tốc: ${speed} mph · Sai số: ${pos.coords.accuracy.toFixed(0)}m`;
+
+                // Thuật toán quét điểm gần nhất trên tuyến đường thực tế
+                let minDst = Infinity; let closestIdx = 0;
+                for (let i = 0; i < geometryCoordinates.length; i++) {
+                    let dst = currentPos.distanceTo(geometryCoordinates[i]);
+                    if (dst < minDst) { minDst = dst; closestIdx = i; }
+                }
+
+                let estimatedStep = Math.floor((closestIdx / geometryCoordinates.length) * stepsData.length);
+                if (estimatedStep < stepsData.length && estimatedStep !== lastStepIdx) {
+                    lastStepIdx = estimatedStep;
+                    const instructionText = stepsData[estimatedStep].maneuver.instruction;
+                    document.getElementById('tts-instruction').innerText = instructionText;
+                    speakVoice(instructionText);
+                }
+            }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        }
+
+        function stopNavigation() {
+            isNavigating = false;
+            clearInterval(simulationInterval);
+            if (watchGpsId) navigator.geolocation.clearWatch(watchGpsId);
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            
+            startNavBtn.innerText = "START";
+            startNavBtn.className = "px-4 py-2 bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all";
+            searchPanel.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-10');
+            if (currentRouteLine) map.fitBounds(currentRouteLine.getBounds());
+        }
+
+        // --- 7. UTILS: GIỌNG NÓI & ĐỘC POLYLINE ---
+        function speakVoice(text) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US'; // OSRM trả chuỗi tiếng Anh mặc định, phát chuẩn giọng Mỹ
+            utterance.rate = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function decodePolyline(str) {
+            var index = 0, len = str.length, lat = 0, lng = 0, coordinates = [];
+            while (index < len) {
+                var b, shift = 0, result = 0;
+                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                var dlat = ((result & 1) ? ~(result >> 1) : (result >> 1)); lat += dlat;
+                shift = 0; result = 0;
+                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+                var dlng = ((result & 1) ? ~(result >> 1) : (result >> 1)); lng += dlng;
+                coordinates.push(L.latLng(lat / 1e5, lng / 1e5));
+            }
+            return coordinates;
+        }
+
+        function calculateBearing(lat1, lon1, lat2, lon2) {
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const lat1Rad = lat1 * Math.PI / 180; const lat2Rad = lat2 * Math.PI / 180;
+            const y = Math.sin(dLon) * Math.cos(lat2Rad);
+            const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+        }
+
+        // Bật tắt Test Mode giả lập bằng nút Robot ẩn
+        const toggleTestBtn = document.getElementById('btn-toggle-testmode');
+        toggleTestBtn.addEventListener('click', () => {
+            if (isNavigating) return;
+            testModeActive = !testModeActive;
+            if (testModeActive) {
+                toggleTestBtn.className = "w-10 h-10 bg-blue-600 border border-blue-500 text-white rounded-full flex items-center justify-center shadow-lg transition-all";
+                document.getElementById('mode-status').innerText = "Giả lập (Simulation)";
+            } else {
+                toggleTestBtn.className = "w-10 h-10 bg-slate-900/95 border border-slate-700/50 text-slate-400 rounded-full flex items-center justify-center shadow-lg transition-all";
+                document.getElementById('mode-status').innerText = "GPS Thực tế";
+            }
+        });
+
         document.getElementById('btn-recenter').addEventListener('click', () => {
             isRecenter = true;
-            const currentLatLng = userMarker.getLatLng();
-            map.setView(currentLatLng, 17);
+            map.setView(userMarker.getLatLng(), 17);
         });
-
-        // Nếu bồ lấy tay kéo màn hình (Pan map), tạm dừng auto-center để bồ coi map tự do
-        map.on('dragstart', () => {
-            isRecenter = false;
-        });
+        map.on('dragstart', () => isRecenter = false);
     </script>
 </body>
 </html>
