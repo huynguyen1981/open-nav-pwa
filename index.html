@@ -190,17 +190,13 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    // --- MAPBOX SECURITY INTEGRATION ---
-    let MAPBOX_TOKEN = localStorage.getItem('MY_MAPBOX_TOKEN');
-    if (!MAPBOX_TOKEN) {
-      MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token của bồ để kích hoạt giao diện Dark Navigation Pro (Bỏ qua để dùng OSM):");
-      if (MAPBOX_TOKEN) {
-        // Trim khoảng trắng thừa nếu lỡ tay copy-paste dính vào
-        MAPBOX_TOKEN = MAPBOX_TOKEN.trim();
-        localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
-        location.reload(); // Reload để áp tile map mới
-      }
-    }
+   // --- MAPBOX SECURITY INTEGRATION ---
+    // Gán cứng token mới toanh để chạy dứt điểm lỗi cache bám dai dẳng
+    const MAPBOX_TOKEN = 'pk.eyJ1IjoiaHV5bmd1eWVuMTk4MSIsImEiOiJjbXFpZzZ5eDQwNzEyMnBwemc5OHBmZ2VmIn0.5totQu0W8GFtP3Et583_yA';
+    
+    // Chủ động dọn sạch rác localStorage cũ để tránh xung đột logic sau này
+    localStorage.removeItem('MY_MAPBOX_TOKEN');
+    localStorage.removeItem('mapbox_token');
     
     // Config Core Map (Tọa độ mặc định OKC)
     const okcLat = 35.4676; const okcLon = -97.5164;
@@ -235,26 +231,20 @@
     
       // Bẫy lỗi dứt điểm: Nếu dính lỗi tile (401, 403, 404), lập tức kích hoạt fallback
       mainLayer.on('tileerror', function(error) {
-        if (MAPBOX_TOKEN) {
-          console.error("⚠️ Lỗi Token Mapbox hoặc chặn domain! Tự động chuyển sang OpenStreetMap...", error);
-          
-          // Xóa dứt điểm token lỗi khỏi localStorage để F5 không bị kẹt lại
-          localStorage.removeItem('MY_MAPBOX_TOKEN');
-          MAPBOX_TOKEN = null;
+        console.error("⚠️ Lỗi Token Mapbox hoặc chặn domain! Tự động chuyển sang OpenStreetMap...", error);
+        
+        // Xóa ngay 2 layer lỗi hiện tại để giải phóng bộ nhớ
+        map.removeLayer(mainLayer);
+        minimap.removeLayer(miniLayer);
     
-          // Xóa ngay 2 layer lỗi hiện tại để giải phóng bộ nhớ
-          map.removeLayer(mainLayer);
-          minimap.removeLayer(miniLayer);
+        // Cấu hình lại về OSM mặc định sạch sẽ
+        const osmUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const osmOptions = { maxZoom: 19, tileSize: 256, zoomOffset: 0 };
     
-          // Cấu hình lại về OSM mặc định sạch sẽ
-          const osmUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-          const osmOptions = { maxZoom: 19, tileSize: 256, zoomOffset: 0 };
+        L.tileLayer(osmUrl, osmOptions).addTo(map);
+        L.tileLayer(osmUrl, osmOptions).addTo(minimap);
     
-          L.tileLayer(osmUrl, osmOptions).addTo(map);
-          L.tileLayer(osmUrl, osmOptions).addTo(minimap);
-    
-          alert("Token Mapbox không hợp lệ hoặc bị chặn URL (403/404). Ứng dụng đã tự động chuyển sang chế độ dự phòng OpenStreetMap!");
-        }
+        alert("Token Mapbox không hợp lệ hoặc bị chặn URL (403/404). Ứng dụng đã tự động chuyển sang chế độ dự phòng OpenStreetMap!");
       });
     }
     
