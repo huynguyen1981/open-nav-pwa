@@ -1,4 +1,4 @@
-const CACHE_NAME = 'opennav-v10';
+const CACHE_NAME = 'opennav-v11'; // Tăng lên v11 để trình duyệt nhận diện bản cập nhật mới
 const ASSETS = [
   './',
   './index.html',
@@ -12,13 +12,31 @@ const ASSETS = [
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS);
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+  );
+});
+
+// Cơ chế dọn rác: Xóa sạch cache v10 khi v11 được kích hoạt
+self.addEventListener('activate', (e) => {
+  e.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
     })
   );
 });
 
 self.addEventListener('fetch', (e) => {
+  const url = e.request.url;
+
+  // 👉 LỖI Ở ĐÂY: Nếu request tới Mapbox, BỎ QUA CACHE, cho tải trực tiếp từ server
+  if (url.includes('api.mapbox.com')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
+  // Logic cache bình thường cho các asset khác
   e.respondWith(
     caches.match(e.request).then((response) => {
       return response || fetch(e.request);
