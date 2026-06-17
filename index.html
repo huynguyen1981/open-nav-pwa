@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>OpenNav Mobile Pro - V10.1</title>
+  <title>OpenNav Mobile Pro - V11 Mapbox</title>
   
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/svg+xml" href="./icon.svg">
@@ -114,7 +114,6 @@
     .btn-float.active { border-color: var(--accent); color: var(--accent); background: rgba(56, 189, 248, 0.2); }
 
     .nav-marker-main, .nav-marker-mini { background: transparent; border: none; }
-    .gps-arrow-icon, .gps-arrow-mini-icon { transition: transform 0.15s linear; transform-origin: center center; }
 
     @media (min-width: 768px) {
       .search-panel { width: 380px; left: 24px; top: 24px; }
@@ -194,26 +193,32 @@
     // --- MAPBOX SECURITY INTEGRATION ---
     let MAPBOX_TOKEN = localStorage.getItem('MY_MAPBOX_TOKEN');
     if (!MAPBOX_TOKEN) {
-      MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token của bồ để kích hoạt giao diện Dark Navigation Pro:");
-      if (MAPBOX_TOKEN) localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
+      MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token của bồ để kích hoạt giao diện Dark Navigation Pro (Bỏ qua để dùng OSM):");
+      if (MAPBOX_TOKEN) {
+        localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
+        location.reload(); // Reload để áp tile map mới
+      }
     }
 
     // Config Core Map
     const okcLat = 35.4676; const okcLon = -97.5164;
     const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([okcLat, okcLon], 12);
     
-    // Tự động fallback sang OSM nếu không có token Mapbox
-    let mainTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    let miniTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    // Fallback sang OSM nếu không có token Mapbox
+    let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    let zoomOffset = 0;
+    let tileSize = 256;
+
     if (MAPBOX_TOKEN) {
-      mainTileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
-      miniTileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+      tileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+      zoomOffset = -1; // Tile Mapbox 512px
+      tileSize = 512;
     }
     
-    L.tileLayer(mainTileUrl, { maxZoom: 20, tileSize: 512, zoomOffset: -1 }).addTo(map);
+    L.tileLayer(tileUrl, { maxZoom: 19, tileSize: tileSize, zoomOffset: zoomOffset }).addTo(map);
 
     const minimap = L.map('minimap', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false });
-    L.tileLayer(miniTileUrl, { maxZoom: 20, tileSize: 512, zoomOffset: -1 }).addTo(minimap);
+    L.tileLayer(tileUrl, { maxZoom: 19, tileSize: tileSize, zoomOffset: zoomOffset }).addTo(minimap);
 
     let originCoords = null; let destCoords = null;
     let currentRouteLine = null; let currentRouteLineMini = null;
@@ -225,15 +230,14 @@
     let currentGeoIndex = 0; let lastSpokenStepIndex = -1;
     let showMiniMapState = false; let testModeActive = false;
 
-    // FIX CHUỖI TỌA ĐỘ PATH TRÊN VECTOR SVG (Bỏ "px" lỗi hình học)
     const arrowHtml = `
-      <div class="gps-arrow-wrapper" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
-        <svg class="gps-arrow-icon" width="36" height="36" viewBox="0 0 32 32" fill="none" style="transform: rotate(0deg);"><path d="M16 2 L28 28 L16 21 L4 28 Z" fill="#38bdf8" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>
+      <div id="gps-arrow" class="gps-arrow-wrapper" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; transition: transform 0.2s linear; transform-origin: center center;">
+        <span class="material-symbols-rounded gps-arrow-icon" style="font-size: 36px !important; color: #38bdf8; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">navigation</span>
       </div>
     `;
     const arrowMiniHtml = `
-      <div class="gps-arrow-mini-wrapper" style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px;">
-        <svg class="gps-arrow-mini-icon" width="26" height="26" viewBox="0 0 32 32" fill="none" style="transform: rotate(0deg);"><path d="M16 2 L28 28 L16 21 L4 28 Z" fill="#eab308" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>
+      <div id="gps-arrow-mini" class="gps-arrow-wrapper" style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; transition: transform 0.2s linear; transform-origin: center center;">
+        <span class="material-symbols-rounded gps-arrow-mini-icon" style="font-size: 26px !important; color: #eab308; text-shadow: 0 1px 4px rgba(0,0,0,0.5);">navigation</span>
       </div>
     `;
 
@@ -553,13 +557,11 @@
     function syncDualMapMovement(latlng, bearing) {
       if (trackingMarker) {
         trackingMarker.setLatLng(latlng); map.setView(latlng, 17); 
-        const arrowEl = document.querySelector('.nav-marker-main .gps-arrow-icon');
-        if (arrowEl) arrowEl.style.transform = `rotate(${bearing}deg)`;
+        const a1 = document.getElementById('gps-arrow'); if(a1) a1.style.transform = `rotate(${bearing}deg)`;
       }
       if (trackingMarkerMini) {
         trackingMarkerMini.setLatLng(latlng); minimap.setView(latlng, 13); 
-        const arrowMiniEl = document.querySelector('.nav-marker-mini .gps-arrow-mini-icon');
-        if (arrowMiniEl) arrowMiniEl.style.transform = `rotate(${bearing}deg)`;
+        const a2 = document.getElementById('gps-arrow-mini'); if(a2) a2.style.transform = `rotate(${bearing}deg)`;
       }
     }
 
