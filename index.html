@@ -647,14 +647,7 @@
       setBottomSheetState('medium');
       if(currentRouteLine) map.fitBounds(currentRouteLine.getBounds());
     }
-
-    // REGISTER SERVICE WORKER
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW failed: ", err));
-      });
-    }
-
+   
     function speakNavigation(text, lang) {
       if (!('speechSynthesis' in window)) return;
       window.speechSynthesis.cancel();
