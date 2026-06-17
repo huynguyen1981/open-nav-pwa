@@ -1,381 +1,691 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>OpenNav Mobile Pro - V12</title>
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    
-    <!-- Tailwind CSS & Leaflet -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>OpenNav Mobile Pro - V10.1</title>
+  
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="./icon.svg">
 
-    <style>
-        html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #0b1528; }
-        #map { width: 100%; height: 100%; z-index: 1; }
-        .mapbox-blueprint-filter { filter: hue-rotate(10deg) invert(90%) contrast(110%) saturate(130%) brightness(95%); }
-        .gps-arrow-marker { transition: transform 0.2s linear; transform-origin: center center; }
-        /* Style dropdown tìm kiếm */
-        .search-dropdown { max-height: 200px; overflow-y: auto; display: none; }
-        .search-dropdown.active { display: block; }
-    </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+
+  <style>
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.95);
+      --bg-input: rgba(15, 23, 42, 0.7);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --border: rgba(255, 255, 255, 0.1);
+      --radius: 16px;
+      --font: 'Inter', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: var(--font); background-color: var(--bg-main); color: var(--text-main); height: 100vh; overflow: hidden; }
+    
+    .app-container { position: relative; width: 100%; height: 100vh; display: flex; flex-direction: column; }
+    #map { width: 100%; height: 100vh; z-index: 1; }
+
+    /* Mini Map Component */
+    .minimap-container {
+      position: absolute; top: 140px; right: 16px; width: 180px; height: 240px;
+      z-index: 1005; border-radius: 16px; border: 2.5px solid var(--accent);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.6); overflow: hidden;
+      transition: opacity 0.3s, transform 0.3s; transform: scale(0); opacity: 0; pointer-events: none; cursor: move;
+    }
+    .minimap-container.show { transform: scale(1); opacity: 1; pointer-events: auto; }
+    #minimap { width: 100%; height: 100%; pointer-events: none; }
+    .minimap-drag-handle {
+      position: absolute; top: 0; left: 0; right: 0; height: 24px; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1010;
+    }
+    .minimap-drag-handle::after { content: ''; width: 32px; height: 4px; background: rgba(255,255,255,0.4); border-radius: 2px; }
+
+    .reroute-banner {
+      position: absolute; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px);
+      background: #eab308; color: #0f172a; padding: 10px 20px; border-radius: 30px; font-weight: 700; font-size: 14px; z-index: 2000; box-shadow: 0 4px 15px rgba(234,179,8,0.4); display: flex; align-items: center; gap: 8px; transition: transform 0.4s;
+    }
+    .reroute-banner.show { transform: translateX(-50%) translateY(0); }
+
+    /* Top Search Panel (Flex-grow responsive) */
+    .search-panel {
+      position: absolute; top: 12px; left: 12px; right: 12px; z-index: 1000; background: var(--bg-card); backdrop-filter: blur(16px); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 10px; transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .search-panel.nav-mode { transform: translateY(-150%); opacity: 0; pointer-events: none; }
+    .input-row { display: flex; align-items: center; background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px; padding: 2px 8px 2px 12px; gap: 8px; }
+    .route-input { flex-grow: 1; background: transparent; border: none; outline: none; color: var(--text-main); font-size: 15px; padding: 10px 0; }
+    .btn-inline { background: transparent; border: none; color: var(--accent); cursor: pointer; display: flex; align-items: center; }
+    .route-options { display: flex; gap: 8px; margin-top: 4px; }
+    .opt-btn { flex: 1; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-muted); padding: 8px; border-radius: 8px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .opt-btn.active { background: var(--accent); color: var(--bg-main); border-color: var(--accent); font-weight: 600; }
+    
+    /* Autocomplete Dropdown */
+    .search-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #1e293b; border: 1px solid var(--border); border-radius: 10px; margin-top: 4px; max-height: 220px; overflow-y: auto; list-style: none; display: none; z-index: 1005; box-shadow: 0 8px 16px rgba(0,0,0,0.4); }
+    .search-dropdown.active { display: block; }
+    .dropdown-item { padding: 12px 16px; cursor: pointer; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.05); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+    .dropdown-item .item-icon { color: var(--text-muted); font-size: 18px; }
+    .dropdown-item.history-type .item-icon { color: #eab308; }
+
+    /* Smart Bottom Sheet UI */
+    .bottom-sheet {
+      position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000; background: var(--bg-card); backdrop-filter: blur(20px); border-top: 1px solid var(--border); border-top-left-radius: 20px; border-top-right-radius: 20px; box-shadow: 0 -10px 25px rgba(0,0,0,0.5); display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), height 0.35s cubic-bezier(0.16, 1, 0.3, 1); height: 85px; 
+    }
+    .bottom-sheet.active { transform: translateY(0); }
+    .bottom-sheet.state-medium { height: 280px; }
+    .bottom-sheet.state-expanded { height: 75vh; }
+
+    .sheet-handle-zone { width: 100%; padding: 12px 0 8px 0; cursor: pointer; display: flex; justify-content: center; }
+    .sheet-handle { width: 44px; height: 5px; background: var(--text-muted); border-radius: 3px; opacity: 0.6; }
+    .sheet-header { padding: 0px 16px 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+    .summary-info { display: flex; flex-direction: column; gap: 4px; }
+    .summary-info .duration { color: #4ade80; font-size: 18px; font-weight: 700; }
+    .distance-row { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 13px; }
+    
+    .voice-selector { display: flex; background: var(--bg-input); padding: 2px; border-radius: 20px; border: 1px solid var(--border); }
+    .lang-btn { background: transparent; border: none; color: var(--text-muted); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 15px; cursor: pointer; }
+    .lang-btn.active { background: var(--accent); color: var(--bg-main); }
+
+    .btn-start { background: #22c55e; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 600; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .btn-start.stop { background: #ef4444; }
+
+    .sheet-body { overflow-y: auto; flex-grow: 1; padding: 8px 16px; display: none; }
+    .bottom-sheet.state-medium .sheet-body, .bottom-sheet.state-expanded .sheet-body { display: block; }
+
+    .instruction-step { display: flex; align-items: flex-start; gap: 12px; padding: 14px 8px; border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 14px; opacity: 0.4; }
+    .instruction-step.highlight { opacity: 1; background: rgba(56, 189, 248, 0.12); border-radius: 8px; border-left: 4px solid var(--accent); font-weight: 500; }
+    .instruction-step .step-icon { color: var(--accent); font-size: 20px; }
+    .instruction-step .step-text { flex-grow: 1; line-height: 1.4; }
+    .instruction-step .step-dist { color: var(--text-muted); font-size: 12px; }
+
+    /* Control Panel */
+    .map-controls { position: absolute; right: 12px; bottom: 105px; z-index: 999; display: flex; flex-direction: column; gap: 10px; transition: bottom 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
+    .btn-float { width: 44px; height: 44px; border-radius: 50%; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-main); display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .btn-float.active { border-color: var(--accent); color: var(--accent); background: rgba(56, 189, 248, 0.2); }
+
+    .nav-marker-main, .nav-marker-mini { background: transparent; border: none; }
+    .gps-arrow-icon, .gps-arrow-mini-icon { transition: transform 0.15s linear; transform-origin: center center; }
+
+    @media (min-width: 768px) {
+      .search-panel { width: 380px; left: 24px; top: 24px; }
+      .bottom-sheet { width: 380px; left: 24px; bottom: 24px; height: 450px !important; border-radius: var(--radius); border: 1px solid var(--border); transform: translateX(-150%); }
+      .bottom-sheet.active { transform: translateX(0); }
+      .sheet-handle-zone { display: none; }
+      .sheet-body { display: block; }
+    }
+  </style>
 </head>
-<body class="relative text-slate-200">
+<body>
+
+  <div class="app-container">
+    <div id="reroute-banner" class="reroute-banner">
+      <span class="material-symbols-rounded">sync</span>Recalculating route...
+    </div>
+
+    <div class="search-panel" id="search-panel">
+      <div class="input-row" style="position: relative;">
+        <span class="material-symbols-rounded" style="color:#4ade80;">circle</span>
+        <input type="text" id="origin-input" class="route-input" placeholder="Start location..." autocomplete="off">
+        <button class="btn-inline" id="btn-use-gps"><span class="material-symbols-rounded" style="font-size:20px;">my_location</span></button>
+        <ul id="origin-dropdown" class="search-dropdown"></ul>
+      </div>
+
+      <div class="input-row" style="position: relative;">
+        <span class="material-symbols-rounded" style="color:#f87171;">location_on</span>
+        <input type="text" id="dest-input" class="route-input" placeholder="Choose destination..." autocomplete="off">
+        <ul id="dest-dropdown" class="search-dropdown"></ul>
+      </div>
+
+      <div class="route-options">
+        <button class="opt-btn active" id="opt-fastest"><span class="material-symbols-rounded" style="font-size:16px;">bolt</span>Freeway</button>
+        <button class="opt-btn" id="opt-exclude"><span class="material-symbols-rounded" style="font-size:16px;">navigation</span>Avoid Freeways</button>
+      </div>
+    </div>
 
     <div id="map"></div>
 
-    <!-- PANEL TÌM KIẾM & ĐỊNH TUYẾN (Ẩn khi đang điều hướng) -->
-    <div id="search-panel" class="absolute top-4 left-0 right-0 mx-4 z-[1000] flex flex-col gap-2 transition-all duration-300">
-        <div class="flex gap-2 items-center">
-            <div class="flex-grow relative bg-slate-900/95 border border-slate-700/50 backdrop-blur-md rounded-xl shadow-lg px-3 py-2.5">
-                <input type="text" id="dest-input" placeholder="Nhập điểm đến (Ví dụ: Bricktown, OKC)..." class="w-full bg-transparent text-slate-100 placeholder-slate-400 text-sm focus:outline-none" autocomplete="off">
-                <!-- Dropdown kết quả gợi ý -->
-                <ul id="search-dropdown" class="search-dropdown absolute left-0 right-0 top-full mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-xl z-[1010] divide-y divide-slate-900"></ul>
-            </div>
-            <button id="btn-recenter" class="w-10 h-10 bg-blue-600 active:bg-blue-700 text-white rounded-xl shadow-lg flex items-center justify-center shrink-0 border border-blue-500/30">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </button>
-        </div>
-
-        <!-- OPTIONS: Chọn chế độ di chuyển (Né Freeway) -->
-        <div class="flex gap-2">
-            <button id="opt-fastest" class="flex-1 py-2 rounded-lg text-xs font-semibold border bg-blue-600/20 border-blue-500 text-blue-400 transition-all">
-                ⚡ Cao tốc (Freeway)
-            </button>
-            <button id="opt-avoid" class="flex-1 py-2 rounded-lg text-xs font-semibold border bg-slate-900/80 border-slate-700 text-slate-400 transition-all">
-                🚗 Né Cao tốc (Avoid)
-            </button>
-        </div>
+    <div id="minimap-container" class="minimap-container">
+      <div class="minimap-drag-handle"></div>
+      <div id="minimap"></div>
     </div>
 
-    <!-- FLOATING CONTROLS -->
-    <div class="absolute right-4 bottom-44 z-[1000] flex flex-col gap-2">
-        <!-- Nút bật tắt chế độ giả lập Giữa nhà -->
-        <button id="btn-toggle-testmode" class="w-10 h-10 bg-slate-900/95 border border-slate-700/50 text-slate-400 rounded-full flex items-center justify-center shadow-lg transition-all">
-            🤖
+    <div class="map-controls" id="map-controls">
+      <button class="btn-float" id="btn-toggle-minimap" title="Toggle Mini Map"><span class="material-symbols-rounded">layers</span></button>
+      <button class="btn-float" id="btn-center-gps" title="Center Current GPS"><span class="material-symbols-rounded">gps_fixed</span></button>
+      <button class="btn-float" id="btn-toggle-testmode" title="Toggle Simulation/Test Mode"><span class="material-symbols-rounded">science</span></button>
+    </div>
+
+    <div id="bottom-sheet" class="bottom-sheet">
+      <div class="sheet-handle-zone" id="sheet-handle-zone">
+        <div class="sheet-handle"></div>
+      </div>
+      <div class="sheet-header">
+        <div class="summary-info">
+          <span id="sheet-duration" class="duration">-- min</span>
+          <div class="distance-row">
+            <span id="sheet-distance">-- mi</span>
+            <div class="voice-selector">
+              <button class="lang-btn active" id="btn-lang-en">EN</button>
+              <button class="lang-btn" id="btn-lang-vi">VN</button>
+            </div>
+          </div>
+        </div>
+        <button class="btn-start" id="btn-start-nav">
+          <span class="material-symbols-rounded">play_arrow</span>START
         </button>
+      </div>
+      <div id="sheet-body" class="sheet-body"></div>
     </div>
+  </div>
 
-    <!-- BOTTOM SHEET DẪN ĐƯỜNG -->
-    <div class="absolute bottom-0 left-0 right-0 m-4 z-[1000] bg-slate-900/95 border border-slate-800/80 backdrop-blur-md rounded-2xl shadow-2xl p-4 flex flex-col gap-3">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-700/50">
-                <svg id="nav-icon" class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-            </div>
-            <div class="flex-grow min-w-0">
-                <p id="tts-instruction" class="text-sm font-medium text-slate-200 truncate">Chọn điểm đến để tính lộ trình...</p>
-                <p id="route-meta" class="text-xs text-slate-400 mt-0.5">Thời gian: -- · Khoảng cách: --</p>
-            </div>
-            <!-- Nút Bắt đầu điều hướng (Chỉ hiện khi có tuyến đường) -->
-            <button id="btn-start-nav" class="hidden px-4 py-2 bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all">
-                START
-            </button>
-        </div>
-        
-        <div class="flex justify-between items-center border-t border-slate-800/60 pt-2.5 text-xs text-slate-400">
-            <span id="gps-status" class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500 inline-block animate-pulse"></span> Đang chờ điểm đến</span>
-            <span id="mode-status" class="text-blue-400 font-medium">GPS Thực tế</span>
-        </div>
-    </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <script>
-        // --- 1. TOKEN & MAP BOX CONFIG ---
-        let MAPBOX_TOKEN = localStorage.getItem('MY_MAPBOX_TOKEN');
-        if (!MAPBOX_TOKEN) {
-            MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token để chạy map xịn (Bỏ qua nếu muốn dùng map mặc định):");
-            if (MAPBOX_TOKEN) localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
-        }
+  <script>
+    // --- MAPBOX SECURITY INTEGRATION ---
+    let MAPBOX_TOKEN = localStorage.getItem('MY_MAPBOX_TOKEN');
+    if (!MAPBOX_TOKEN) {
+      MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token của bồ để kích hoạt giao diện Dark Navigation Pro:");
+      if (MAPBOX_TOKEN) localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
+    }
 
-        const defaultLocation = [35.4676, -97.5164]; 
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(defaultLocation, 15);
+    // Config Core Map
+    const okcLat = 35.4676; const okcLon = -97.5164;
+    const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([okcLat, okcLon], 12);
+    
+    // Tự động fallback sang OSM nếu không có token Mapbox
+    let mainTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    let miniTileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    if (MAPBOX_TOKEN) {
+      mainTileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+      miniTileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+    }
+    
+    L.tileLayer(mainTileUrl, { maxZoom: 20, tileSize: 512, zoomOffset: -1 }).addTo(map);
 
-        let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        if (MAPBOX_TOKEN) tileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
-        const baseTile = L.tileLayer(tileUrl, { maxZoom: 20, tileSize: 512, zoomOffset: -1 }).addTo(map);
-        if (!MAPBOX_TOKEN) baseTile.getContainer().classList.add('mapbox-blueprint-filter');
+    const minimap = L.map('minimap', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false });
+    L.tileLayer(miniTileUrl, { maxZoom: 20, tileSize: 512, zoomOffset: -1 }).addTo(minimap);
 
-        // --- 2. CONFIG BIẾN CORE LỘ TRÌNH & ĐỊNH VỊ ---
-        let originCoords = null;
-        let destCoords = null;
-        let currentRouteLine = null;
-        let geometryCoordinates = [];
-        let stepsData = [];
-        
-        let isNavigating = false;
-        let isRecenter = true;
-        let testModeActive = false; // Mặc định chạy GPS thật, ấn nút Robot để bật giả lập
-        let routingPreference = 'fastest'; // 'fastest' hoặc 'avoid'
-        
-        let simulationInterval = null;
-        let watchGpsId = null;
+    let originCoords = null; let destCoords = null;
+    let currentRouteLine = null; let currentRouteLineMini = null;
+    let trackingMarker = null; let trackingMarkerMini = null;
+    let routingPreference = 'fastest'; let currentLanguage = 'en';
 
-        // Mũi tên GPS
-        const arrowSvg = `<svg class="gps-arrow-marker" width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 2L28 28L16 21L4 28L16 2px" fill="#0066ff" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>`;
-        let userMarker = L.marker(defaultLocation, {
-            icon: L.divIcon({ html: arrowSvg, className: '', iconSize: [32, 32], iconAnchor: [16, 16] })
-        }).addTo(map);
+    let isNavigating = false; let simulationInterval = null; let watchGpsId = null;
+    let geometryCoordinates = []; let stepsData = [];
+    let currentGeoIndex = 0; let lastSpokenStepIndex = -1;
+    let showMiniMapState = false; let testModeActive = false;
 
-        // --- 3. XỬ LÝ NÉ FREEWAY & CHUYỂN ĐỔI OPTION ---
-        const optFastest = document.getElementById('opt-fastest');
-        const optAvoid = document.getElementById('opt-avoid');
+    // FIX CHUỖI TỌA ĐỘ PATH TRÊN VECTOR SVG (Bỏ "px" lỗi hình học)
+    const arrowHtml = `
+      <div class="gps-arrow-wrapper" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;">
+        <svg class="gps-arrow-icon" width="36" height="36" viewBox="0 0 32 32" fill="none" style="transform: rotate(0deg);"><path d="M16 2 L28 28 L16 21 L4 28 Z" fill="#38bdf8" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>
+      </div>
+    `;
+    const arrowMiniHtml = `
+      <div class="gps-arrow-mini-wrapper" style="display: flex; align-items: center; justify-content: center; width: 30px; height: 30px;">
+        <svg class="gps-arrow-mini-icon" width="26" height="26" viewBox="0 0 32 32" fill="none" style="transform: rotate(0deg);"><path d="M16 2 L28 28 L16 21 L4 28 Z" fill="#eab308" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/></svg>
+      </div>
+    `;
 
-        optFastest.addEventListener('click', () => toggleRoutingPref('fastest'));
-        optAvoid.addEventListener('click', () => toggleRoutingPref('avoid'));
+    function initTrackingMarkers(startLatLng) {
+      if (trackingMarker) map.removeLayer(trackingMarker);
+      if (trackingMarkerMini) minimap.removeLayer(trackingMarkerMini);
+      trackingMarker = L.marker(startLatLng, { icon: L.divIcon({ className: 'nav-marker-main', html: arrowHtml, iconSize: [40, 40], iconAnchor: [20, 20] }) }).addTo(map);
+      trackingMarkerMini = L.marker(startLatLng, { icon: L.divIcon({ className: 'nav-marker-mini', html: arrowMiniHtml, iconSize: [30, 30], iconAnchor: [15, 15] }) }).addTo(minimap);
+    }
 
-        function toggleRoutingPref(pref) {
-            if (isNavigating) return;
-            routingPreference = pref;
-            if (pref === 'fastest') {
-                optFastest.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-blue-600/20 border-blue-500 text-blue-400 transition-all";
-                optAvoid.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-slate-900/80 border-slate-700 text-slate-400 transition-all";
-            } else {
-                optAvoid.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-blue-600/20 border-blue-500 text-blue-400 transition-all";
-                optFastest.className = "flex-1 py-2 rounded-lg text-xs font-semibold border bg-slate-900/80 border-slate-700 text-slate-400 transition-all";
-            }
-            if (destCoords) requestRoute();
-        }
+    // LOCALSTORAGE SEARCH HISTORY PRESETS
+    function saveToHistory(displayName, lat, lon) {
+      let history = JSON.parse(localStorage.getItem('nav_search_history')) || [];
+      history = history.filter(item => item.name !== displayName);
+      history.unshift({ name: displayName, lat: lat, lon: lon });
+      if (history.length > 5) history.pop();
+      localStorage.setItem('nav_search_history', JSON.stringify(history));
+    }
 
-        // --- 4. CONFIG AUTOCLOSE & SEARCH ĐỊA ĐIỂM TỰ ĐỘNG ---
-        setupSearchAutocomplete();
-
-        function setupSearchAutocomplete() {
-            const input = document.getElementById('dest-input');
-            const dropdown = document.getElementById('search-dropdown');
-            let timer;
-
-            input.addEventListener('input', (e) => {
-                clearTimeout(timer);
-                const query = e.target.value.trim();
-                if (query.length < 3) { dropdown.classList.remove('active'); return; }
-
-                timer = setTimeout(async () => {
-                    // Biến map.getCenter() giúp ưu tiên tìm các địa điểm ở gần bồ trước (OKC)
-                    const center = map.getCenter();
-                    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}&limit=5`;
-                    try {
-                        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
-                        const data = await res.json();
-                        dropdown.innerHTML = '';
-                        if (data.length === 0) { dropdown.classList.remove('active'); return; }
-
-                        data.forEach(item => {
-                            const li = document.createElement('li');
-                            li.className = 'p-3 text-xs text-slate-300 cursor-pointer hover:bg-slate-900 truncate';
-                            const cleanName = item.display_name.split(',')[0] + ', ' + (item.display_name.split(',')[1] || '').trim();
-                            li.innerText = cleanName;
-                            li.addEventListener('click', () => {
-                                input.value = cleanName;
-                                dropdown.classList.remove('active');
-                                destCoords = L.latLng(item.lat, item.lon);
-                                requestRoute();
-                            });
-                            dropdown.appendChild(li);
-                        });
-                        dropdown.classList.add('active');
-                    } catch (err) { console.error(err); }
-                }, 400);
-            });
-
-            document.addEventListener('click', (e) => {
-                if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('active');
-            });
-        }
-
-        // --- 5. ĐỊNH TUYẾN OSRM API (ĐÁP ỨNG NÉ FREEWAY) ---
-        async function requestRoute() {
-            if (!destCoords) return;
-            // Lấy vị trí xuất phát từ điểm Marker hiện tại của xe
-            originCoords = userMarker.getLatLng();
-
-            if (currentRouteLine) map.removeLayer(currentRouteLine);
-
-            // Cấu hình Profile OSRM: 'driving' đi cao tốc, 'cycling' ép đi đường nhỏ né freeway
-            let profile = (routingPreference === 'avoid') ? "cycling" : "driving";
-            let url = `https://router.project-osrm.org/route/v1/${profile}/${originCoords.lng},${originCoords.lat};${destCoords.lng},${destCoords.lat}?overview=full&steps=true`;
-
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-                if (data.code !== 'Ok') return;
-
-                const route = data.routes[0];
-                geometryCoordinates = decodePolyline(route.geometry);
-
-                // Vẽ tuyến đường màu xanh neon lên bản đồ
-                currentRouteLine = L.polyline(geometryCoordinates, { color: '#38bdf8', weight: 6, opacity: 0.85 }).addTo(map);
-                map.fitBounds(currentRouteLine.getBounds(), { padding: [60, 60] });
-
-                stepsData = route.legs[0].steps;
-                
-                // Hiển thị Meta
-                const durationMin = Math.round(route.duration / 60);
-                const distanceMi = (route.distance * 0.000621371).toFixed(1);
-                document.getElementById('route-meta').innerText = `${durationMin} phút · ${distanceMi} mi`;
-                document.getElementById('tts-instruction').innerText = "Tuyến đường đã sẵn sàng.";
-                
-                // Hiện nút START
-                document.getElementById('btn-start-nav').classList.remove('hidden');
-            } catch (err) { console.error(err); }
-        }
-
-        // --- 6. XỬ LÝ CHẠY GIẢ LẬP HOẶC REAL-TIME GPS VỚI VOICE ---
-        const startNavBtn = document.getElementById('btn-start-nav');
-        const searchPanel = document.getElementById('search-panel');
-
-        startNavBtn.addEventListener('click', () => {
-            if (!isNavigating) {
-                isNavigating = true;
-                startNavBtn.innerText = "STOP";
-                startNavBtn.className = "px-4 py-2 bg-red-600 active:bg-red-700 text-white text-xs font-bold rounded-xl shadow-md transition-all";
-                searchPanel.classList.add('opacity-0', 'pointer-events-none', '-translate-y-10'); // Giấu panel tìm kiếm cho gọn máy
-
-                if (testModeActive) {
-                    runSimulation();
-                } else {
-                    startRealGPSTracking();
-                }
-            } else {
-                stopNavigation();
-            }
+    function showHistoryDropdown(dropdownEl, inputEl, onSelect) {
+      const history = JSON.parse(localStorage.getItem('nav_search_history')) || [];
+      if (history.length === 0) return;
+      
+      dropdownEl.innerHTML = '';
+      history.forEach(item => {
+        const li = document.createElement('li');
+        li.className = 'dropdown-item history-type';
+        li.innerHTML = `<span class="material-symbols-rounded shortcut-icon">history</span><span>${item.name}</span>`;
+        li.addEventListener('click', (e) => {
+          e.stopPropagation();
+          inputEl.value = item.name;
+          dropdownEl.classList.remove('active');
+          onSelect(L.latLng(item.lat, item.lon));
         });
+        dropdownEl.appendChild(li);
+      });
+      dropdownEl.classList.add('active');
+    }
 
-        // HÀM CHẠY GIẢ LẬP (SIMULATION TEST)
-        function runSimulation() {
-            let currentIndex = 0;
-            let lastStepIdx = -1;
+    setupAutocompleteAndHistory('origin-input', 'origin-dropdown', (coords) => { originCoords = coords; requestRoute(); });
+    setupAutocompleteAndHistory('dest-input', 'dest-dropdown', (coords) => { destCoords = coords; requestRoute(); });
+
+    function setupAutocompleteAndHistory(inputId, dropdownId, onSelect) {
+      const input = document.getElementById(inputId); 
+      const dropdown = document.getElementById(dropdownId);
+      let timer;
+
+      input.addEventListener('focus', () => {
+        if (input.value.trim().length === 0) showHistoryDropdown(dropdown, input, onSelect);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.remove('active');
+      });
+
+      input.addEventListener('input', (e) => {
+        clearTimeout(timer); 
+        const query = e.target.value.trim();
+        if (query.length === 0) { showHistoryDropdown(dropdown, input, onSelect); return; }
+        if (query.length < 3) { dropdown.classList.remove('active'); return; }
+        
+        timer = setTimeout(async () => {
+          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=us&limit=5`;
+          try {
+            const res = await fetch(url, { headers: { 'Accept-Language': 'en' } }); 
+            const data = await res.json();
+            dropdown.innerHTML = ''; 
+            if(data.length === 0) { dropdown.classList.remove('active'); return; }
             
-            simulationInterval = setInterval(() => {
-                if (currentIndex >= geometryCoordinates.length) { stopNavigation(); return; }
-                
-                const currentPos = geometryCoordinates[currentIndex];
-                let bearing = 0;
-                if (currentIndex < geometryCoordinates.length - 1) {
-                    const nextPos = geometryCoordinates[currentIndex + 1];
-                    bearing = calculateBearing(currentPos.lat, currentPos.lng, nextPos.lat, nextPos.lng);
-                }
+            data.forEach(item => {
+              const li = document.createElement('li'); 
+              li.className = 'dropdown-item';
+              const labelName = item.display_name.split(',')[0] + ', ' + (item.display_name.split(',')[1] || '').trim();
+              li.innerHTML = `<span class="material-symbols-rounded item-icon">location_on</span><span>${labelName}</span>`;
+              
+              li.addEventListener('click', () => {
+                input.value = labelName;
+                dropdown.classList.remove('active');
+                saveToHistory(labelName, item.lat, item.lon);
+                onSelect(L.latLng(item.lat, item.lon));
+              });
+              dropdown.appendChild(li);
+            });
+            dropdown.classList.add('active');
+          } catch (err) { console.error(err); }
+        }, 350);
+      });
+    }
 
-                // Cập nhật vị trí marker và khóa góc xoay map
-                userMarker.setLatLng(currentPos);
-                if (isRecenter) map.setView(currentPos, 17);
-                
-                const arrowElement = document.querySelector('.gps-arrow-marker');
-                if (arrowElement) arrowElement.style.transform = `rotate(${bearing}deg)`;
+    const toggleTestModeBtn = document.getElementById('btn-toggle-testmode');
+    toggleTestModeBtn.addEventListener('click', () => {
+      if(isNavigating) return;
+      testModeActive = !testModeActive;
+      toggleTestModeBtn.classList.toggle('active', testModeActive);
+      speakNavigation(testModeActive ? "Simulation mode on" : "Real GPS mode on", "en");
+    });
 
-                // Tính toán đồng bộ text chỉ đường giả lập
-                let totalPoints = geometryCoordinates.length;
-                let totalSteps = stepsData.length;
-                let estimatedStep = Math.floor((currentIndex / totalPoints) * totalSteps);
-                
-                if (estimatedStep < totalSteps && estimatedStep !== lastStepIdx) {
-                    lastStepIdx = estimatedStep;
-                    const instructionText = stepsData[estimatedStep].maneuver.instruction;
-                    document.getElementById('tts-instruction').innerText = instructionText;
-                    speakVoice(instructionText);
-                }
+    map.on('click', function(e) { if (isNavigating) triggerRealtimeReroute(e.latlng); });
 
-                currentIndex++;
-            }, 800); // Tốc độ nhảy điểm giả lập
+    const toggleMinimapBtn = document.getElementById('btn-toggle-minimap');
+    toggleMinimapBtn.addEventListener('click', () => {
+      showMiniMapState = !showMiniMapState;
+      toggleMinimapBtn.classList.toggle('active', showMiniMapState);
+      document.getElementById('minimap-container').classList.toggle('show', showMiniMapState);
+      if(showMiniMapState) setTimeout(() => minimap.invalidateSize(), 200);
+    });
+
+    document.getElementById('btn-lang-en').addEventListener('click', () => changeLanguage('en'));
+    document.getElementById('btn-lang-vi').addEventListener('click', () => changeLanguage('vi'));
+    function changeLanguage(lang) {
+      currentLanguage = lang;
+      document.getElementById('btn-lang-en').classList.toggle('active', lang === 'en');
+      document.getElementById('btn-lang-vi').classList.toggle('active', lang === 'vi');
+      if (stepsData.length > 0) renderTurnByTurn(stepsData);
+    }
+
+    document.getElementById('opt-fastest').addEventListener('click', () => toggleOpt('fastest'));
+    document.getElementById('opt-exclude').addEventListener('click', () => toggleOpt('avoid'));
+    function toggleOpt(pref) {
+      if(isNavigating) return;
+      routingPreference = pref;
+      document.getElementById('opt-fastest').classList.toggle('active', pref === 'fastest');
+      document.getElementById('opt-exclude').classList.toggle('active', pref === 'avoid');
+      if(originCoords && destCoords) requestRoute();
+    }
+
+    document.getElementById('btn-use-gps').addEventListener('click', () => {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        originCoords = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        document.getElementById('origin-input').value = "My Location";
+        requestRoute();
+      });
+    });
+
+    function decodePolyline(str) {
+      var index = 0, len = str.length, lat = 0, lng = 0, coordinates = [];
+      while (index < len) {
+        var b, shift = 0, result = 0;
+        do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        var dlat = ((result & 1) ? ~(result >> 1) : (result >> 1)); lat += dlat;
+        shift = 0; result = 0;
+        do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+        var dlng = ((result & 1) ? ~(result >> 1) : (result >> 1)); lng += dlng;
+        coordinates.push(L.latLng(lat / 1e5, lng / 1e5));
+      }
+      return coordinates;
+    }
+
+    function calculateBearing(lat1, lon1, lat2, lon2) {
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const lat1Rad = lat1 * Math.PI / 180; const lat2Rad = lat2 * Math.PI / 180;
+      const y = Math.sin(dLon) * Math.cos(lat2Rad);
+      const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+      return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    }
+
+    function cleanTextForSpeech(text) {
+      if(!text) return "";
+      let clean = text;
+      clean = clean.replace(/\bNW\b/gi, "Tây Bắc").replace(/\bNE\b/gi, "Đông Bắc");
+      clean = clean.replace(/\bSW\b/gi, "Tây Nam").replace(/\bSE\b/gi, "Đông Nam");
+      return clean;
+    }
+
+    function translateInstruction(step) {
+      if (!step) return "Đi thẳng tiếp tục theo lộ trình.";
+      const maneuver = step.maneuver || {}; const modifier = maneuver.modifier || ""; const type = maneuver.type || "";
+      const roadName = step.name ? step.name.trim() : ""; const cleanStreet = cleanTextForSpeech(roadName);
+
+      if (type.includes('arrive')) return "Bạn đã tới vị trí đích đến.";
+      if (type.includes('depart')) return `Bắt đầu khởi hành ${cleanStreet ? 'vào ' + cleanStreet : ''}`;
+
+      let action = "Đi thẳng tiếp tục";
+      if (modifier.includes('sharp left')) action = "Cua gấp bên trái";
+      else if (modifier.includes('sharp right')) action = "Cua gấp bên phải";
+      else if (modifier.includes('left')) action = "Rẽ trái";
+      else if (modifier.includes('right')) action = "Rẽ phải";
+      else if (modifier.includes('uturn')) action = "Hãy quay đầu xe";
+
+      return `${action} ${cleanStreet ? 'vào ' + cleanStreet : 'theo lộ trình bản đồ'}`;
+    }
+
+    function getCleanText(step, lang) {
+      if (!step) return lang === 'vi' ? "Đi thẳng tiếp tục" : "Continue straight";
+      if (step.maneuver && step.maneuver.instruction) {
+        if (lang === 'vi') return translateInstruction(step);
+        return step.maneuver.instruction;
+      }
+      return lang === 'vi' ? translateInstruction(step) : "Drive onto route";
+    }
+
+    async function requestRoute() {
+      if (!originCoords || !destCoords) return;
+      if (currentRouteLine) map.removeLayer(currentRouteLine);
+      if (currentRouteLineMini) minimap.removeLayer(currentRouteLineMini);
+      if (trackingMarker) map.removeLayer(trackingMarker);
+      if (trackingMarkerMini) minimap.removeLayer(trackingMarkerMini);
+
+      let profile = (routingPreference === 'avoid') ? "cycling" : "driving";
+      let url = `https://router.project-osrm.org/route/v1/${profile}/${originCoords.lng},${originCoords.lat};${destCoords.lng},${destCoords.lat}?overview=full&steps=true`;
+      
+      try {
+        const response = await fetch(url); const data = await response.json();
+        if(data.code !== 'Ok') return;
+
+        const route = data.routes[0];
+        geometryCoordinates = decodePolyline(route.geometry);
+
+        currentRouteLine = L.polyline(geometryCoordinates, { color: '#38bdf8', weight: 6, opacity: 0.85 }).addTo(map);
+        if(!isNavigating) map.fitBounds(currentRouteLine.getBounds(), { padding: [50, 50] });
+
+        currentRouteLineMini = L.polyline(geometryCoordinates, { color: '#eab308', weight: 4, opacity: 0.9 }).addTo(minimap);
+        minimap.fitBounds(currentRouteLineMini.getBounds());
+
+        stepsData = route.legs[0].steps;
+        document.getElementById('sheet-duration').textContent = `${Math.round(route.duration / 60)} min`;
+        document.getElementById('sheet-distance').textContent = `${(route.distance * 0.000621371).toFixed(1)} mi`;
+
+        renderTurnByTurn(stepsData);
+        setBottomSheetState('medium');
+        document.getElementById('bottom-sheet').classList.add('active');
+        
+        initTrackingMarkers(geometryCoordinates[0]);
+      } catch (err) { console.error(err); }
+    }
+
+    function renderTurnByTurn(steps) {
+      const body = document.getElementById('sheet-body'); body.innerHTML = '';
+      steps.forEach((step, index) => {
+        const div = document.createElement('div'); div.className = 'instruction-step'; div.id = `step-${index}`;
+        let icon = 'navigation'; const modifier = step.maneuver ? step.maneuver.modifier : ""; const type = step.maneuver ? step.maneuver.type : "";
+
+        if (modifier.includes('left')) icon = 'turn_left';
+        else if (modifier.includes('right')) icon = 'turn_right';
+        else if (type.includes('arrive')) icon = 'flag';
+        else if (type.includes('depart')) icon = 'my_location';
+
+        div.innerHTML = `
+          <span class="material-symbols-rounded step-icon">${icon}</span>
+          <div class="step-text">${getCleanText(step, currentLanguage)}</div>
+          ${step.distance > 0 ? `<span class="step-dist">${(step.distance * 0.000621371).toFixed(2)} mi</span>` : ''}
+        `;
+        body.appendChild(div);
+      });
+    }
+
+    const startBtn = document.getElementById('btn-start-nav');
+    const searchPanel = document.getElementById('search-panel');
+    const bottomSheet = document.getElementById('bottom-sheet');
+    const mapControls = document.getElementById('map-controls');
+    const rerouteBanner = document.getElementById('reroute-banner');
+
+    startBtn.addEventListener('click', () => {
+      if (!isNavigating) {
+        isNavigating = true;
+        startBtn.innerHTML = `<span class="material-symbols-rounded">stop</span>STOP`;
+        startBtn.classList.add('stop');
+        searchPanel.classList.add('nav-mode');
+        setBottomSheetState('collapsed'); 
+        
+        currentGeoIndex = 0; lastSpokenStepIndex = -1;
+        if (testModeActive) runGPSMovementSimulation(); else startRealtimeGPSTracking();
+      } else {
+        stopNavigation();
+      }
+    });
+
+    function startRealtimeGPSTracking() {
+      if (!navigator.geolocation) return;
+      updateStepHighlight(0);
+
+      watchGpsId = navigator.geolocation.watchPosition((pos) => {
+        const currentPos = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        const heading = pos.coords.heading !== null ? pos.coords.heading : 0;
+
+        syncDualMapMovement(currentPos, heading);
+
+        let closestIndex = findClosestRoutePoint(currentPos);
+        let totalPoints = geometryCoordinates.length; let totalSteps = stepsData.length;
+        let estimatedStep = Math.floor((closestIndex / totalPoints) * totalSteps);
+        
+        if (estimatedStep < totalSteps && estimatedStep !== lastSpokenStepIndex) {
+          lastSpokenStepIndex = estimatedStep;
+          updateStepHighlight(estimatedStep);
+          speakNavigation(getCleanText(stepsData[estimatedStep], currentLanguage), currentLanguage);
+        }
+      }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+    }
+
+    function runGPSMovementSimulation() {
+      if(geometryCoordinates.length === 0) return;
+      updateStepHighlight(0);
+
+      simulationInterval = setInterval(() => {
+        if (currentGeoIndex >= geometryCoordinates.length) { stopNavigation(); return; }
+        const currentPos = geometryCoordinates[currentGeoIndex];
+        let bearing = 0;
+        if (currentGeoIndex < geometryCoordinates.length - 1) {
+          const nextPos = geometryCoordinates[currentGeoIndex + 1];
+          bearing = calculateBearing(currentPos.lat, currentPos.lng, nextPos.lat, nextPos.lng);
         }
 
-        // HÀM CHẠY THEO CHIP GPS THẬT
-        function startRealGPSTracking() {
-            let lastStepIdx = -1;
-            watchGpsId = navigator.geolocation.watchPosition((pos) => {
-                const currentPos = L.latLng(pos.coords.latitude, pos.coords.longitude);
-                const heading = pos.coords.heading || 0;
-                const speed = pos.coords.speed ? Math.round(pos.coords.speed * 2.23694) : 0;
+        syncDualMapMovement(currentPos, bearing);
 
-                userMarker.setLatLng(currentPos);
-                if (isRecenter) map.setView(currentPos, 17);
-                
-                const arrowElement = document.querySelector('.gps-arrow-marker');
-                if (arrowElement) arrowElement.style.transform = `rotate(${heading}deg)`;
-
-                document.getElementById('route-meta').innerText = `Vận tốc: ${speed} mph · Sai số: ${pos.coords.accuracy.toFixed(0)}m`;
-
-                // Thuật toán quét điểm gần nhất trên tuyến đường thực tế
-                let minDst = Infinity; let closestIdx = 0;
-                for (let i = 0; i < geometryCoordinates.length; i++) {
-                    let dst = currentPos.distanceTo(geometryCoordinates[i]);
-                    if (dst < minDst) { minDst = dst; closestIdx = i; }
-                }
-
-                let estimatedStep = Math.floor((closestIdx / geometryCoordinates.length) * stepsData.length);
-                if (estimatedStep < stepsData.length && estimatedStep !== lastStepIdx) {
-                    lastStepIdx = estimatedStep;
-                    const instructionText = stepsData[estimatedStep].maneuver.instruction;
-                    document.getElementById('tts-instruction').innerText = instructionText;
-                    speakVoice(instructionText);
-                }
-            }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        let totalPoints = geometryCoordinates.length; let totalSteps = stepsData.length;
+        let estimatedStep = Math.floor((currentGeoIndex / totalPoints) * totalSteps);
+        
+        if (estimatedStep < totalSteps && estimatedStep !== lastSpokenStepIndex) {
+          lastSpokenStepIndex = estimatedStep;
+          updateStepHighlight(estimatedStep);
+          speakNavigation(getCleanText(stepsData[estimatedStep], currentLanguage), currentLanguage);
         }
+        currentGeoIndex++;
+      }, 700);
+    }
 
-        function stopNavigation() {
-            isNavigating = false;
-            clearInterval(simulationInterval);
-            if (watchGpsId) navigator.geolocation.clearWatch(watchGpsId);
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            
-            startNavBtn.innerText = "START";
-            startNavBtn.className = "px-4 py-2 bg-emerald-600 active:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all";
-            searchPanel.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-10');
-            if (currentRouteLine) map.fitBounds(currentRouteLine.getBounds());
+    function syncDualMapMovement(latlng, bearing) {
+      if (trackingMarker) {
+        trackingMarker.setLatLng(latlng); map.setView(latlng, 17); 
+        const arrowEl = document.querySelector('.nav-marker-main .gps-arrow-icon');
+        if (arrowEl) arrowEl.style.transform = `rotate(${bearing}deg)`;
+      }
+      if (trackingMarkerMini) {
+        trackingMarkerMini.setLatLng(latlng); minimap.setView(latlng, 13); 
+        const arrowMiniEl = document.querySelector('.nav-marker-mini .gps-arrow-mini-icon');
+        if (arrowMiniEl) arrowMiniEl.style.transform = `rotate(${bearing}deg)`;
+      }
+    }
+
+    function findClosestRoutePoint(currentPos) {
+      let minDst = Infinity; let closestIdx = 0;
+      for (let i = 0; i < geometryCoordinates.length; i++) {
+        let dst = currentPos.distanceTo(geometryCoordinates[i]);
+        if (dst < minDst) { minDst = dst; closestIdx = i; }
+      }
+      return closestIdx;
+    }
+
+    async function triggerRealtimeReroute(deviatedLatLng) {
+      rerouteBanner.classList.add('show');
+      speakNavigation(currentLanguage === 'vi' ? "Đang tính toán lại lộ trình." : "Recalculating route.", currentLanguage);
+      originCoords = deviatedLatLng;
+      let profile = (routingPreference === 'avoid') ? "cycling" : "driving";
+      let url = `https://router.project-osrm.org/route/v1/${profile}/${originCoords.lng},${originCoords.lat};${destCoords.lng},${destCoords.lat}?overview=full&steps=true`;
+      try {
+        const response = await fetch(url); const data = await response.json();
+        if(data.code === 'Ok') {
+          const route = data.routes[0];
+          geometryCoordinates = decodePolyline(route.geometry);
+          stepsData = route.legs[0].steps;
+          currentGeoIndex = 0; lastSpokenStepIndex = -1;
+          
+          if (currentRouteLine) map.removeLayer(currentRouteLine);
+          if (currentRouteLineMini) minimap.removeLayer(currentRouteLineMini);
+          
+          currentRouteLine = L.polyline(geometryCoordinates, { color: '#38bdf8', weight: 6 }).addTo(map);
+          currentRouteLineMini = L.polyline(geometryCoordinates, { color: '#eab308', weight: 4 }).addTo(minimap);
+          
+          renderTurnByTurn(stepsData);
+          updateStepHighlight(0);
         }
+      } catch (err) { console.error(err); }
+      finally { setTimeout(() => { rerouteBanner.classList.remove('show'); }, 1200); }
+    }
 
-        // --- 7. UTILS: GIỌNG NÓI & ĐỘC POLYLINE ---
-        function speakVoice(text) {
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US'; // OSRM trả chuỗi tiếng Anh mặc định, phát chuẩn giọng Mỹ
-            utterance.rate = 1.0;
-            window.speechSynthesis.speak(utterance);
-        }
+    function updateStepHighlight(stepIdx) {
+      document.querySelectorAll('.instruction-step').forEach(el => el.classList.remove('highlight'));
+      const activeRow = document.getElementById(`step-${stepIdx}`);
+      if (activeRow) { activeRow.classList.add('highlight'); activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }
 
-        function decodePolyline(str) {
-            var index = 0, len = str.length, lat = 0, lng = 0, coordinates = [];
-            while (index < len) {
-                var b, shift = 0, result = 0;
-                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-                var dlat = ((result & 1) ? ~(result >> 1) : (result >> 1)); lat += dlat;
-                shift = 0; result = 0;
-                do { b = str.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
-                var dlng = ((result & 1) ? ~(result >> 1) : (result >> 1)); lng += dlng;
-                coordinates.push(L.latLng(lat / 1e5, lng / 1e5));
-            }
-            return coordinates;
-        }
+    function stopNavigation() {
+      isNavigating = false; clearInterval(simulationInterval);
+      if(watchGpsId) { navigator.geolocation.clearWatch(watchGpsId); watchGpsId = null; }
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      startBtn.innerHTML = `<span class="material-symbols-rounded">play_arrow</span>START`;
+      startBtn.classList.remove('stop'); searchPanel.classList.remove('nav-mode');
+      setBottomSheetState('medium');
+      if(currentRouteLine) map.fitBounds(currentRouteLine.getBounds());
+    }
 
-        function calculateBearing(lat1, lon1, lat2, lon2) {
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const lat1Rad = lat1 * Math.PI / 180; const lat2Rad = lat2 * Math.PI / 180;
-            const y = Math.sin(dLon) * Math.cos(lat2Rad);
-            const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
-            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-        }
+    // REGISTER SERVICE WORKER
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW failed: ", err));
+      });
+    }
 
-        // Bật tắt Test Mode giả lập bằng nút Robot ẩn
-        const toggleTestBtn = document.getElementById('btn-toggle-testmode');
-        toggleTestBtn.addEventListener('click', () => {
-            if (isNavigating) return;
-            testModeActive = !testModeActive;
-            if (testModeActive) {
-                toggleTestBtn.className = "w-10 h-10 bg-blue-600 border border-blue-500 text-white rounded-full flex items-center justify-center shadow-lg transition-all";
-                document.getElementById('mode-status').innerText = "Giả lập (Simulation)";
-            } else {
-                toggleTestBtn.className = "w-10 h-10 bg-slate-900/95 border border-slate-700/50 text-slate-400 rounded-full flex items-center justify-center shadow-lg transition-all";
-                document.getElementById('mode-status').innerText = "GPS Thực tế";
-            }
-        });
+    function speakNavigation(text, lang) {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = (lang === 'vi') ? 'vi-VN' : 'en-US';
+      utterance.rate = 0.95; window.speechSynthesis.speak(utterance);
+    }
 
-        document.getElementById('btn-recenter').addEventListener('click', () => {
-            isRecenter = true;
-            map.setView(userMarker.getLatLng(), 17);
-        });
-        map.on('dragstart', () => isRecenter = false);
-    </script>
+    // Smart Bottom Sheet State Logic
+    const handleZone = document.getElementById('sheet-handle-zone');
+    let currentSheetState = 'medium'; 
+
+    handleZone.addEventListener('click', () => {
+      if (window.innerWidth >= 768) return; 
+      if (currentSheetState === 'collapsed') setBottomSheetState('medium');
+      else if (currentSheetState === 'medium') setBottomSheetState('expanded');
+      else setBottomSheetState('collapsed');
+    });
+
+    function setBottomSheetState(state) {
+      currentSheetState = state;
+      bottomSheet.classList.remove('state-medium', 'state-expanded');
+      let heightValue = 85;
+      if (state === 'medium') { bottomSheet.classList.add('state-medium'); heightValue = 280; }
+      else if (state === 'expanded') { bottomSheet.classList.add('state-expanded'); heightValue = window.innerHeight * 0.75; }
+      mapControls.style.bottom = `${heightValue + 16}px`;
+    }
+
+    // Draggable Mini Map Component
+    const dragContainer = document.getElementById('minimap-container');
+    let isDraggingMap = false; let mapOffsetX = 0; let mapOffsetY = 0;
+
+    dragContainer.addEventListener('mousedown', startMapDrag);
+    dragContainer.addEventListener('touchstart', startMapDrag, { passive: false });
+    window.addEventListener('mousemove', dragMapMove);
+    window.addEventListener('touchmove', dragMapMove, { passive: false });
+    window.addEventListener('mouseup', endMapDrag);
+    window.addEventListener('touchend', endMapDrag);
+
+    function startMapDrag(e) {
+      isDraggingMap = true;
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const rect = dragContainer.getBoundingClientRect();
+      mapOffsetX = clientX - rect.left; mapOffsetY = clientY - rect.top;
+      dragContainer.style.right = 'auto'; dragContainer.style.top = 'auto';
+    }
+
+    function dragMapMove(e) {
+      if (!isDraggingMap) return;
+      if (e.cancelable) e.preventDefault();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      let left = clientX - mapOffsetX; let top = clientY - mapOffsetY;
+      if(left < 0) left = 0; if(top < 0) top = 0;
+      if(left > window.innerWidth - dragContainer.offsetWidth) left = window.innerWidth - dragContainer.offsetWidth;
+      if(top > window.innerHeight - dragContainer.offsetHeight) top = window.innerHeight - dragContainer.offsetHeight;
+      dragContainer.style.left = `${left}px`; dragContainer.style.top = `${top}px`;
+    }
+    function endMapDrag() { isDraggingMap = false; }
+
+    document.getElementById('btn-center-gps').addEventListener('click', () => {
+      if(trackingMarker) map.setView(trackingMarker.getLatLng(), 17);
+    });
+  </script>
 </body>
 </html>
