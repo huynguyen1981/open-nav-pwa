@@ -195,30 +195,71 @@
     if (!MAPBOX_TOKEN) {
       MAPBOX_TOKEN = prompt("Nhập Mapbox Access Token của bồ để kích hoạt giao diện Dark Navigation Pro (Bỏ qua để dùng OSM):");
       if (MAPBOX_TOKEN) {
+        // Trim khoảng trắng thừa nếu lỡ tay copy-paste dính vào
+        MAPBOX_TOKEN = MAPBOX_TOKEN.trim();
         localStorage.setItem('MY_MAPBOX_TOKEN', MAPBOX_TOKEN);
         location.reload(); // Reload để áp tile map mới
       }
     }
-
-    // Config Core Map
+    
+    // Config Core Map (Tọa độ mặc định OKC)
     const okcLat = 35.4676; const okcLon = -97.5164;
     const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([okcLat, okcLon], 12);
     
-    // Fallback sang OSM nếu không có token Mapbox
+    // Khởi tạo Mini Map (Chặn toàn bộ tương tác để làm bản đồ thu nhỏ)
+    const minimap = L.map('minimap', { 
+      zoomControl: false, 
+      attributionControl: false, 
+      dragging: false, 
+      touchZoom: false, 
+      scrollWheelZoom: false, 
+      doubleClickZoom: false 
+    }).setView([okcLat, okcLon], 10); // Đảm bảo setView cho minimap để không bị lệch trục
+    
+    // --- CẤU HÌNH TILE LAYER VÀ FALLBACK THÔNG MINH ---
     let tileUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    let zoomOffset = 0;
-    let tileSize = 256;
-
+    let mapOptions = { maxZoom: 19, tileSize: 256, zoomOffset: 0 }; // Mặc định của OSM
+    
     if (MAPBOX_TOKEN) {
       tileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
-      zoomOffset = -1; // Tile Mapbox 512px
-      tileSize = 512;
+      mapOptions.tileSize = 512;   // Cấu hình chuẩn Retina/HD của Mapbox Styles v1 API
+      mapOptions.zoomOffset = -1;  // Tránh mờ font chữ địa danh
     }
     
-    L.tileLayer(tileUrl, { maxZoom: 19, tileSize: tileSize, zoomOffset: zoomOffset }).addTo(map);
-
-    const minimap = L.map('minimap', { zoomControl: false, attributionControl: false, dragging: false, touchZoom: false, scrollWheelZoom: false, doubleClickZoom: false });
-    L.tileLayer(tileUrl, { maxZoom: 19, tileSize: tileSize, zoomOffset: zoomOffset }).addTo(minimap);
+    // Hàm render map và tự động fallback nếu dính lỗi 403/404
+    function loadMapLayers(url, options) {
+      // Thêm layer vào bản đồ chính
+      const mainLayer = L.tileLayer(url, options).addTo(map);
+      // Thêm layer vào mini map
+      const miniLayer = L.tileLayer(url, options).addTo(minimap);
+    
+      // Bẫy lỗi dứt điểm: Nếu dính lỗi tile (401, 403, 404), lập tức kích hoạt fallback
+      mainLayer.on('tileerror', function(error) {
+        if (MAPBOX_TOKEN) {
+          console.error("⚠️ Lỗi Token Mapbox hoặc chặn domain! Tự động chuyển sang OpenStreetMap...", error);
+          
+          // Xóa dứt điểm token lỗi khỏi localStorage để F5 không bị kẹt lại
+          localStorage.removeItem('MY_MAPBOX_TOKEN');
+          MAPBOX_TOKEN = null;
+    
+          // Xóa ngay 2 layer lỗi hiện tại để giải phóng bộ nhớ
+          map.removeLayer(mainLayer);
+          minimap.removeLayer(miniLayer);
+    
+          // Cấu hình lại về OSM mặc định sạch sẽ
+          const osmUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+          const osmOptions = { maxZoom: 19, tileSize: 256, zoomOffset: 0 };
+    
+          L.tileLayer(osmUrl, osmOptions).addTo(map);
+          L.tileLayer(osmUrl, osmOptions).addTo(minimap);
+    
+          alert("Token Mapbox không hợp lệ hoặc bị chặn URL (403/404). Ứng dụng đã tự động chuyển sang chế độ dự phòng OpenStreetMap!");
+        }
+      });
+    }
+    
+    // Kích hoạt chạy
+    loadMapLayers(tileUrl, mapOptions);
 
     let originCoords = null; let destCoords = null;
     let currentRouteLine = null; let currentRouteLineMini = null;
