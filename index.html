@@ -217,7 +217,7 @@
     let mapOptions = { maxZoom: 19, tileSize: 256, zoomOffset: 0 }; // Mặc định của OSM
     
     if (MAPBOX_TOKEN) {
-      tileUrl = `https://api.mapbox.com/styles/v1/mapbox/navigation-dark-v1/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
+      tileUrl = `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
       mapOptions.tileSize = 512;   // Cấu hình chuẩn Retina/HD của Mapbox Styles v1 API
       mapOptions.zoomOffset = -1;  // Tránh mờ font chữ địa danh
     }
