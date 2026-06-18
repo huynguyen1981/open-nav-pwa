@@ -221,10 +221,10 @@
       const currentHour = new Date().getHours();
       const isDayTime = currentHour >= 6 && currentHour < 18;
       
-      // Ban ngày dùng style navigation-day rõ địa hình, ban đêm dùng dark mode dịu mắt
-      const mapboxStyle = isDayTime ? 'navigation-day-v11' : 'dark-v11';
+      // Sửa lại đây: Ban ngày dùng 'streets-v12' hoặc 'navigation-day-v1' chuẩn của Mapbox
+      const mapboxStyle = isDayTime ? 'streets-v12' : 'dark-v11';
       console.log(`[OpenNav Mode] Current hour: ${currentHour}h -> Loaded style: ${mapboxStyle}`);
-
+    
       tileUrl = `https://api.mapbox.com/styles/v1/mapbox/${mapboxStyle}/tiles/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`;
       mapOptions.tileSize = 512;
       mapOptions.zoomOffset = -1;
